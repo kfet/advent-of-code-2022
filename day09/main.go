@@ -1,11 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+
+	"kfet.org/aoc_common/assert"
+	"kfet.org/aoc_common/input"
 )
 
 type knot struct {
@@ -129,32 +131,25 @@ func (k *knot) pull(other *knot) knot {
 }
 
 func (r *rope) runFile(name string) error {
-	file, err := os.Open(name)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	defer file.Close()
 
-	scan := bufio.NewScanner(file)
-	for scan.Scan() {
-		txt := scan.Text()
-		ins := strings.Split(txt, " ")
+	err := input.ReadFileLines(name, func(line string) error {
+		ins := strings.Split(line, " ")
 		if len(ins) != 2 {
-			fmt.Printf("Wrong input: %v", txt)
+			fmt.Printf("Wrong input: %v", line)
 			return os.ErrInvalid
 		}
 
 		n, err := strconv.ParseInt(ins[1], 10, 64)
 		if err != nil {
-			fmt.Printf("Wrong input, can't parse int: %v", txt)
+			fmt.Printf("Wrong input, can't parse int: %v", line)
 			return os.ErrInvalid
 		}
 
 		r.move(ins[0], n)
-	}
+		return nil
+	})
 
-	if err := scan.Err(); err != nil {
+	if err != nil {
 		fmt.Println(err)
 		return err
 	}
@@ -177,27 +172,32 @@ func (r *rope) printVisited() {
 }
 
 func main() {
-	var r *rope
-	// r := NewRope(2)
-	// r.runFile("data/input.txt")
-	// fmt.Println(len(r.visited))
+	r := NewRope(2)
+	r.runFile("data/input.txt")
 
-	// r = NewRope(2)
-	// r.runFile("data/part_one.txt")
-	// r.printVisited()
-	// fmt.Println(len(r.visited))
+	assert.Equals(6057, len(r.visited), "")
+	fmt.Println(len(r.visited))
+
+	r = NewRope(2)
+	r.runFile("data/part_one.txt")
+	r.printVisited()
+	assert.Equals(13, len(r.visited), "")
+	fmt.Println(len(r.visited))
 
 	r = NewRope(10)
 	r.runFile("data/part_two.txt")
 	r.printVisited()
+	assert.Equals(36, len(r.visited), "")
 	fmt.Println(len(r.visited))
 
 	r = NewRope(10)
 	r.runFile("data/input.txt")
+	assert.Equals(2514, len(r.visited), "")
 	fmt.Println(len(r.visited))
 
 	r = NewRope(10)
 	r.runFile("data/part_two_short.txt")
 	r.printVisited()
+	assert.Equals(1, len(r.visited), "")
 	fmt.Println(len(r.visited))
 }

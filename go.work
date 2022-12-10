@@ -1,0 +1,11 @@
+go 1.19
+
+use ./day01
+
+use ./day09
+
+use ./day10
+
+use ./aoc_common
+
+replace kfet.org/aoc_common v0.0.0 => ./aoc_common

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"container/heap"
 	"fmt"
-	"os"
 	"strconv"
+
+	"kfet.org/aoc_common/assert"
+	"kfet.org/aoc_common/input"
 )
 
 // Adopted IntHeap example from container/heap
@@ -32,30 +33,28 @@ func maxElfsCalories(fileName string, maxElfs int) (elfMaxHeap, int, error) {
 	var elfs elfMaxHeap
 	heap.Init(&elfs)
 
-	file, err := os.Open(fileName)
-	if err != nil {
-		fmt.Println(err)
-		return elfs, 0, err
-	}
-
-	scan := bufio.NewScanner(file)
 	var elfCalories int
-	for scan.Scan() {
-		txt := scan.Text()
-		if len(txt) == 0 {
+
+	err := input.ReadFileLines(fileName, func(line string) error {
+		if len(line) == 0 {
 			// new line
 			heap.Push(&elfs, elfCalories)
 			elfCalories = 0
-			continue
+			return nil
 		}
 
-		cals, err := strconv.ParseInt(txt, 10, 64)
+		cals, err := strconv.ParseInt(line, 10, 64)
 		if err != nil {
-			fmt.Printf("Failed parsing number %v", txt)
+			fmt.Printf("Failed parsing number %v", line)
 			fmt.Println(err)
-			return elfs, 0, err
+			return err
 		}
 		elfCalories += int(cals)
+		return nil
+	})
+
+	if err != nil {
+		return nil, 0, err
 	}
 
 	var maxCalories int
@@ -71,6 +70,8 @@ func main() {
 		fmt.Print(err)
 		return
 	}
+
+	assert.Equals(24000, cals, "")
 	fmt.Printf("Part one example: %v\n", cals)
 
 	_, cals, err = maxElfsCalories("data/input.txt", 1)
@@ -78,6 +79,7 @@ func main() {
 		fmt.Print(err)
 		return
 	}
+	assert.Equals(66616, cals, "")
 	fmt.Printf("Part one all input: %v\n", cals)
 
 	_, cals, err = maxElfsCalories("data/part_one.txt", 3)
@@ -85,6 +87,7 @@ func main() {
 		fmt.Print(err)
 		return
 	}
+	assert.Equals(41000, cals, "")
 	fmt.Printf("Part two example: %v\n", cals)
 
 	_, cals, err = maxElfsCalories("data/input.txt", 3)
@@ -92,5 +95,6 @@ func main() {
 		fmt.Print(err)
 		return
 	}
+	assert.Equals(199172, cals, "")
 	fmt.Printf("Part two all input: %v\n", cals)
 }
