@@ -38,20 +38,22 @@ func NewRope(knotCount int64) *rope {
 
 func (r *rope) move(dir string, n int64) {
 
-	switch dir {
-	case "L":
-		r.knots[0].x -= n
-	case "R":
-		r.knots[0].x += n
-	case "U":
-		r.knots[0].y += n
-	case "D":
-		r.knots[0].y -= n
+	for i := int64(0); i < n; i++ {
+		switch dir {
+		case "L":
+			r.knots[0].x--
+		case "R":
+			r.knots[0].x++
+		case "U":
+			r.knots[0].y++
+		case "D":
+			r.knots[0].y--
+		}
+		r.pullRope()
 	}
-	r.fixT()
 }
 
-var emptyDir knot
+var noOp knot
 
 func (r *rope) visitTail() {
 	pad := int64(2)
@@ -71,15 +73,11 @@ func (r *rope) visitTail() {
 	}
 }
 
-func (r *rope) fixT() {
-	for i := range r.knots {
-		if i == 0 {
-			// skip head
-			continue
-		}
+func (r *rope) pullRope() {
+	for i := 1; i < len(r.knots); i++ {
 		isTail := int64(i) == r.count-1
 		prev, cur := &r.knots[i-1], &r.knots[i]
-		for dir := prev.pull(cur); dir != emptyDir; dir = prev.pull(cur) {
+		for dir := prev.pull(cur); dir != noOp; dir = prev.pull(cur) {
 			cur.x += dir.x
 			cur.y += dir.y
 			if isTail {
@@ -89,20 +87,22 @@ func (r *rope) fixT() {
 	}
 }
 
-func abs[T int | int16 | int32 | int64 | int8](x T) T {
-	if x < 0 {
-		return -x
+func (k *knot) pull(other *knot) knot {
+	abs := func(x int64) int64 {
+		if x < 0 {
+			return -x
+		}
+		return x
 	}
-	return x
-}
 
-func (e *knot) pull(other *knot) knot {
 	res := knot{
-		x: e.x - other.x,
-		y: e.y - other.y,
+		x: k.x - other.x,
+		y: k.y - other.y,
 	}
+
 	aX, aY := abs(res.x), abs(res.y)
 	if aX+aY > 2 {
+		// diagonal moves allowed
 		if aX > 0 {
 			res.x = res.x / aX
 		}
@@ -113,8 +113,10 @@ func (e *knot) pull(other *knot) knot {
 		squash := func(pi *int64) {
 			a := abs(*pi)
 			if a > 1 {
+				// pull in this direction
 				*pi = *pi / a
 			} else {
+				// adjacent, do not in this direction
 				*pi = 0
 			}
 		}
@@ -175,6 +177,7 @@ func (r *rope) printVisited() {
 }
 
 func main() {
+	var r *rope
 	// r := NewRope(2)
 	// r.runFile("data/input.txt")
 	// fmt.Println(len(r.visited))
@@ -184,12 +187,12 @@ func main() {
 	// r.printVisited()
 	// fmt.Println(len(r.visited))
 
-	// r = NewRope(10)
-	// r.runFile("data/part_two.txt")
-	// r.printVisited()
-	// fmt.Println(len(r.visited))
+	r = NewRope(10)
+	r.runFile("data/part_two.txt")
+	r.printVisited()
+	fmt.Println(len(r.visited))
 
-	r := NewRope(10)
+	r = NewRope(10)
 	r.runFile("data/input.txt")
 	fmt.Println(len(r.visited))
 
