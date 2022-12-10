@@ -36,10 +36,6 @@ func NewRope(knotCount int64) *rope {
 	return r
 }
 
-func (e *knot) String() string {
-	return fmt.Sprintf("%v,%v", e.x, e.y)
-}
-
 func (r *rope) move(dir string, n int64) {
 
 	switch dir {
