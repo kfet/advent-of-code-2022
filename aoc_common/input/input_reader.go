@@ -3,7 +3,17 @@ package input
 import (
 	"bufio"
 	"os"
+	"strings"
 )
+
+func ReadFileLinesStrings(name string, useLineStrings func(stringTokens []string) error) error {
+	err := ReadFileLines(name, func(line string) error {
+		strings := strings.Split(line, " ")
+		err := useLineStrings(strings)
+		return err
+	})
+	return err
+}
 
 func ReadFileLines(name string, useLine func(line string) error) error {
 	file, err := os.Open(name)
