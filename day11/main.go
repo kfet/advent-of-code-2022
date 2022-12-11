@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"kfet.org/aoc_common/assert"
 )
 
 type item struct {
@@ -262,6 +264,7 @@ func main() {
 	}
 	fmt.Println(res)
 	fmt.Println("=================")
+	assert.Equals(10605, res, "")
 
 	res, err = processFile("data/input.txt", 3, 20)
 	if err != nil {
@@ -270,6 +273,7 @@ func main() {
 	}
 	fmt.Println(res)
 	fmt.Println("=================")
+	assert.Equals(110220, res, "")
 
 	res, err = processFile("data/part_one_short.txt", 1, 10000)
 	if err != nil {
@@ -279,6 +283,7 @@ func main() {
 	printMonkeys()
 	fmt.Println(res)
 	fmt.Println("=================")
+	assert.Equals(2713310158, res, "")
 
 	res, err = processFile("data/input.txt", 1, 10000)
 	if err != nil {
@@ -288,4 +293,5 @@ func main() {
 	printMonkeys()
 	fmt.Println(res)
 	fmt.Println("=================")
+	assert.Equals(19457438264, res, "")
 }
