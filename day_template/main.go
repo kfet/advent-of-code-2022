@@ -17,7 +17,7 @@ func procFile(name string) (int, error) {
 }
 
 func main() {
-	res, err := procFile("data/part_one_small.txt")
+	res, err := procFile("data/part_one_short.txt")
 	if err != nil {
 		fmt.Println(err)
 		return
