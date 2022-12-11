@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func ReadFileLinesStrings(name string, useLineStrings func(stringTokens []string) error) error {
+func ReadFileLinesStrings(name string, useLineStrings func(tokens []string) error) error {
 	err := ReadFileLines(name, func(line string) error {
 		strings := strings.Split(line, " ")
 		err := useLineStrings(strings)
