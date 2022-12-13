@@ -29,49 +29,50 @@ func getRange(s string) (secRange, error) {
 	return secRange{s: a, e: b}, nil
 }
 
-func fullOverlap(a, b secRange) bool {
-	if a.s <= b.s {
-		// test that a contains b
-		return a.e >= b.e
-	} else {
-		// a.s > b.s
-		// test that b contains a
-		return a.e <= b.e
+func anyOverlap(a, b secRange) bool {
+	if a.s == b.s {
+		return true
 	}
+	if a.s < b.s {
+		return a.e >= b.s
+	}
+	// a.s > b.s
+	return a.s <= b.e
 }
 
-func procFile(name string) (int, error) {
-	var sum int
-	var count int
-	err := input.ReadFileLines(name, func(line string) error {
-		defer func() {
-			count++
-		}()
-		print := func(i interface{}) {
-			if count%100 == 0 {
-				fmt.Println(i)
-			}
-		}
+func fullOverlap(a, b secRange) bool {
+	if a.s == b.s {
+		return true
+	}
+	if a.s < b.s {
+		// test that a contains b
+		return a.e >= b.e
+	}
+	// a.s > b.s
+	// test that b contains a
+	return a.e <= b.e
 
+}
+
+func processFile(name string, testFunc func(secRange, secRange) bool) (int, error) {
+	var sum int
+
+	err := input.ReadFileLines(name, func(line string) error {
 		tokens := strings.Split(line, ",")
 		if len(tokens) != 2 {
 			return errors.New("Wrong line format " + line)
 		}
 
 		r1, err := getRange(tokens[0])
-		print("---------")
-		print(r1)
 		if err != nil {
 			return err
 		}
 		r2, err := getRange(tokens[1])
-		print(r2)
 		if err != nil {
 			return err
 		}
 
-		if fullOverlap(r1, r2) {
-			print("overlap")
+		if testFunc(r1, r2) {
 			sum++
 		}
 		return nil
@@ -84,7 +85,7 @@ func procFile(name string) (int, error) {
 }
 
 func main() {
-	res, err := procFile("data/part_one_short.txt")
+	res, err := processFile("data/part_one_short.txt", fullOverlap)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -92,7 +93,7 @@ func main() {
 	fmt.Println(res)
 	fmt.Println("=================")
 
-	res, err = procFile("data/input.txt")
+	res, err = processFile("data/input.txt", fullOverlap)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -100,4 +101,19 @@ func main() {
 	fmt.Println(res)
 	fmt.Println("=================")
 
+	res, err = processFile("data/part_one_short.txt", anyOverlap)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
+
+	res, err = processFile("data/input.txt", anyOverlap)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
 }
