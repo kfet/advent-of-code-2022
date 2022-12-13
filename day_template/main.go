@@ -7,7 +7,7 @@ import (
 )
 
 func procFile(name string) (int, error) {
-	err := input.ReadFileLinesStrings(name, func(tokens []string) error {
+	err := input.ReadFileLines(name, func(line string) error {
 		return nil
 	})
 	if err != nil {
@@ -17,23 +17,7 @@ func procFile(name string) (int, error) {
 }
 
 func main() {
-	res, err := procFile("data/part_one_short.txt")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(res)
-	fmt.Println("=================")
-
-	res, err = procFile("data/part_one.txt")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(res)
-	fmt.Println("=================")
-
-	res, err = procFile("data/part_two.txt")
+	res, err := procFile("data/part_one.txt")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -48,5 +32,4 @@ func main() {
 	}
 	fmt.Println(res)
 	fmt.Println("=================")
-
 }
