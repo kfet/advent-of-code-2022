@@ -4,6 +4,8 @@ use ./day01
 
 use ./day04
 
+use ./day05
+
 use ./day09
 
 use ./day10

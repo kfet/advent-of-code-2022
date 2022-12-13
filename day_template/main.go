@@ -6,7 +6,7 @@ import (
 	"kfet.org/aoc_common/input"
 )
 
-func procFile(name string) (int, error) {
+func processFile(name string) (int, error) {
 	err := input.ReadFileLines(name, func(line string) error {
 		return nil
 	})
@@ -17,7 +17,7 @@ func procFile(name string) (int, error) {
 }
 
 func main() {
-	res, err := procFile("data/part_one.txt")
+	res, err := processFile("data/part_one.txt")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -25,7 +25,7 @@ func main() {
 	fmt.Println(res)
 	fmt.Println("=================")
 
-	res, err = procFile("data/input.txt")
+	res, err = processFile("data/input.txt")
 	if err != nil {
 		fmt.Println(err)
 		return
