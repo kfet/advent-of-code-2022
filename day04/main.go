@@ -50,8 +50,8 @@ func processFile(name string, testFunc func(secRange, secRange) bool) (int, erro
 			return errors.New("Wrong line format " + line)
 		}
 
-		r1 := *NewSecRange(input.MustStrConvInts(tokens[1:3]))
-		r2 := *NewSecRange(input.MustStrConvInts(tokens[3:5]))
+		r1 := *NewSecRange(input.MustAtoInts(tokens[1:3]))
+		r2 := *NewSecRange(input.MustAtoInts(tokens[3:5]))
 
 		if testFunc(r1, r2) {
 			sum++
