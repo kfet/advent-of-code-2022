@@ -2,21 +2,23 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
+	"kfet.org/aoc_common/assert"
 	"kfet.org/aoc_common/calc"
 	"kfet.org/aoc_common/input"
 )
-
-type treeVisibility struct {
-	maxHeight int
-	t         *tree
-}
 
 type tree struct {
 	height                int
 	up, down, left, right treeVisibility
 	visibilityHook        func(*tree, bool)
+}
+
+type treeVisibility struct {
+	maxHeight int
+	t         *tree
 }
 
 type treeMap struct {
@@ -75,26 +77,31 @@ func (t *tree) recalcVisibility() {
 	}
 }
 
-func (t *tree) recalcVisibilityDown() {
-	if t.down.maxHeight < t.down.t.down.maxHeight {
-		t.down.maxHeight = t.down.t.down.maxHeight
+func (t *tree) recalcVisibilityDir(dir func(*tree) *treeVisibility, back func(*tree) *treeVisibility) {
+	v := dir(t)
+	if v.maxHeight < dir(v.t).maxHeight ||
+		v.maxHeight < v.t.height {
+		v.maxHeight = calc.Max(dir(v.t).maxHeight, v.t.height)
 		t.recalcVisibility()
 
-		if t.up.t != nil {
-			t.up.t.recalcVisibilityDown()
+		if bt := back(t); bt.t != nil {
+			bt.t.recalcVisibilityDir(dir, back)
 		}
 	}
 }
 
-func (t *tree) recalcVisibilityRight() {
-	if t.right.maxHeight < t.right.t.right.maxHeight {
-		t.right.maxHeight = t.right.t.right.maxHeight
-		t.recalcVisibility()
+func (t *tree) recalcVisibilityDown() {
+	t.recalcVisibilityDir(
+		func(t *tree) *treeVisibility { return &t.down },
+		func(t *tree) *treeVisibility { return &t.up },
+	)
+}
 
-		if t.left.t != nil {
-			t.left.t.recalcVisibilityRight()
-		}
-	}
+func (t *tree) recalcVisibilityRight() {
+	t.recalcVisibilityDir(
+		func(t *tree) *treeVisibility { return &t.right },
+		func(t *tree) *treeVisibility { return &t.left },
+	)
 }
 
 func NewTree(up, left *tree, height int) *tree {
@@ -113,11 +120,7 @@ func NewTree(up, left *tree, height int) *tree {
 			maxHeight: calc.Max(up.up.maxHeight, up.height),
 		}
 		// hook down link and recalc column down visibility
-		up.down = treeVisibility{
-			t:         t,
-			maxHeight: height,
-		}
-		up.recalcVisibility()
+		up.down.t = t
 		up.recalcVisibilityDown()
 	}
 
@@ -129,18 +132,14 @@ func NewTree(up, left *tree, height int) *tree {
 			maxHeight: calc.Max(left.left.maxHeight, left.height),
 		}
 		// hook right link and recalc row right visibility
-		left.right = treeVisibility{
-			t:         t,
-			maxHeight: height,
-		}
-		left.recalcVisibility()
+		left.right.t = t
 		left.recalcVisibilityRight()
 	}
 
 	return t
 }
 
-func processFile(name string) (int, error) {
+func processFile(name string, partOne bool) (int, error) {
 
 	tm := NewTreeMap()
 
@@ -172,11 +171,67 @@ func processFile(name string) (int, error) {
 		return 0, err
 	}
 
-	return len(tm.visible), nil
+	if partOne {
+		return len(tm.visible), nil
+	}
+
+	// part two
+	scoreInDirection := func(t *tree, nextTree func(*tree) *tree) int {
+		nt := nextTree(t)
+		var dirScore int
+		for nt != nil {
+			dirScore++
+			if nt.height >= t.height {
+				// tree hides the view
+				break
+			}
+			nt = nextTree(nt)
+		}
+		return dirScore
+	}
+
+	score := func(t *tree) int {
+		u := scoreInDirection(t, func(t *tree) *tree { return t.up.t })
+		l := scoreInDirection(t, func(t *tree) *tree { return t.left.t })
+		d := scoreInDirection(t, func(t *tree) *tree { return t.down.t })
+		r := scoreInDirection(t, func(t *tree) *tree { return t.right.t })
+
+		return u * l * d * r
+	}
+
+	maxScore := math.MinInt
+	for _, r := range tm.trees {
+		for _, t := range r {
+			s := score(t)
+			if s > maxScore {
+				maxScore = s
+			}
+		}
+	}
+
+	return maxScore, nil
 }
 
 func main() {
-	res, err := processFile("data/part_one.txt")
+	res, err := processFile("data/part_one.txt", true)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
+	assert.Equals(21, res, "")
+
+	res, err = processFile("data/input.txt", true)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
+	assert.Equals(1708, res, "")
+
+	res, err = processFile("data/part_one.txt", false)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -184,7 +239,7 @@ func main() {
 	fmt.Println(res)
 	fmt.Println("=================")
 
-	res, err = processFile("data/input.txt")
+	res, err = processFile("data/input.txt", false)
 	if err != nil {
 		fmt.Println(err)
 		return
