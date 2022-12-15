@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"kfet.org/aoc_common/assert"
+	"kfet.org/aoc_common/calc"
 	"kfet.org/aoc_common/input"
 )
 
@@ -90,19 +91,12 @@ func (r *rope) pullRope() {
 }
 
 func (k *knot) pull(other *knot) knot {
-	abs := func(x int64) int64 {
-		if x < 0 {
-			return -x
-		}
-		return x
-	}
-
 	res := knot{
 		x: k.x - other.x,
 		y: k.y - other.y,
 	}
 
-	aX, aY := abs(res.x), abs(res.y)
+	aX, aY := calc.Abs(res.x), calc.Abs(res.y)
 	if aX+aY > 2 {
 		// diagonal moves allowed
 		if aX > 0 {
@@ -113,7 +107,7 @@ func (k *knot) pull(other *knot) knot {
 		}
 	} else {
 		squash := func(pi *int64) {
-			a := abs(*pi)
+			a := calc.Abs(*pi)
 			if a > 1 {
 				// pull in this direction
 				*pi = *pi / a
