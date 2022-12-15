@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
+	"regexp"
 	"strings"
 
 	"kfet.org/aoc_common/assert"
+	"kfet.org/aoc_common/input"
 )
 
 type stacks []stack
@@ -69,29 +70,12 @@ func (s *stacks) moveCrates(scan *bufio.Scanner, moveFunc func(*stacks, int, int
 
 	for scan.Scan() {
 		line := scan.Text()
-		tokens := strings.Split(line, " ")
-		if len(tokens) != 6 {
+		tokens := regexp.MustCompile(`move (\d+) from (\d+) to (\d+)`).FindStringSubmatch(line)
+		if tokens == nil {
 			return errors.New("wrong move line format " + line)
 		}
-
-		count, err := strconv.Atoi(tokens[1])
-		if err != nil {
-			return err
-		}
-		from, err := strconv.Atoi(tokens[3])
-		if err != nil {
-			return err
-		}
-		to, err := strconv.Atoi(tokens[5])
-		if err != nil {
-			return err
-		}
-
-		// convert to slice indexing
-		from--
-		to--
-
-		moveFunc(s, count, from, to)
+		nums := input.MustAtoInts(tokens[1:])
+		moveFunc(s, nums[0], nums[1]-1, nums[2]-1)
 	}
 	if err := scan.Err(); err != nil {
 		return err

@@ -3,13 +3,11 @@ package main
 import (
 	"container/heap"
 	"fmt"
-	"strconv"
 
 	"kfet.org/aoc_common/assert"
 	"kfet.org/aoc_common/input"
 )
 
-// Adopted IntHeap example from container/heap
 type elfMaxHeap []int
 
 func (e elfMaxHeap) Len() int           { return len(e) }
@@ -43,13 +41,7 @@ func maxElfsCalories(fileName string, maxElfs int) (elfMaxHeap, int, error) {
 			return nil
 		}
 
-		cals, err := strconv.ParseInt(line, 10, 64)
-		if err != nil {
-			fmt.Printf("Failed parsing number %v", line)
-			fmt.Println(err)
-			return err
-		}
-		elfCalories += int(cals)
+		elfCalories += input.MustAtoi(line)
 		return nil
 	})
 

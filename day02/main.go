@@ -9,66 +9,75 @@ import (
 	"kfet.org/aoc_common/input"
 )
 
-var (
+type shape string
+
+const (
 	rock     = "Rock"
 	paper    = "Paper"
 	scissors = "Scissors"
 )
 
-var theirCode = map[string]string{
+var theirCode = map[string]shape{
 	"A": rock,
 	"B": paper,
 	"C": scissors,
 }
 
-var myCode = map[string]string{
+var myCode = map[string]shape{
 	"X": rock,
 	"Y": paper,
 	"Z": scissors,
 }
 
-var scoreMap = map[string]int{
-	rock:     1,
-	paper:    2,
-	scissors: 3,
-}
-
 type round struct {
-	them string
-	me   string
+	them shape
+	me   shape
 }
 
-var roundMap = map[round]int{
-	{rock, rock}:         3,
-	{rock, paper}:        6,
-	{rock, scissors}:     0,
-	{paper, rock}:        0,
-	{paper, paper}:       3,
-	{paper, scissors}:    6,
-	{scissors, rock}:     6,
-	{scissors, paper}:    0,
-	{scissors, scissors}: 3,
-}
-
-func roundScore(them, me string) (int, error) {
-	ss, ok := scoreMap[me]
-	if !ok {
-		return 0, errors.New("Unknown shape score " + me)
+var (
+	shapeScoreMap = map[shape]int{
+		rock:     1,
+		paper:    2,
+		scissors: 3,
 	}
-	rs, ok := roundMap[round{them, me}]
+
+	roundScoreMap = map[round]int{
+		{rock, rock}:         3,
+		{rock, paper}:        6,
+		{rock, scissors}:     0,
+		{paper, rock}:        0,
+		{paper, paper}:       3,
+		{paper, scissors}:    6,
+		{scissors, rock}:     6,
+		{scissors, paper}:    0,
+		{scissors, scissors}: 3,
+	}
+)
+
+func roundScore(them, me shape) (int, error) {
+	ss, ok := shapeScoreMap[shape(me)]
 	if !ok {
-		return 0, errors.New("Unknown shapes " + them + ", " + me)
+		return 0, errors.New("Unknown shape score " + string(me))
+	}
+	rs, ok := roundScoreMap[round{them, me}]
+	if !ok {
+		return 0, errors.New("Unknown shapes " + string(them) + ", " + string(me))
 	}
 
 	return ss + rs, nil
 }
 
-func myCodeOne(their, mine string) string {
-	return myCode[mine]
+func myCodeQuizOne(their shape, code string) shape {
+	return myCode[code]
 }
 
-func myCodeTwo(their, mine string) string {
-	m := map[round]string{
+func myCodeQuizTwo(their shape, mine string) shape {
+	type codeRound struct {
+		their shape
+		my    string
+	}
+
+	m := map[codeRound]shape{
 		{rock, "X"}:     scissors,
 		{rock, "Y"}:     rock,
 		{rock, "Z"}:     paper,
@@ -79,12 +88,12 @@ func myCodeTwo(their, mine string) string {
 		{scissors, "Y"}: scissors,
 		{scissors, "Z"}: rock,
 	}
-	return m[round{their, mine}]
+	return m[codeRound{their, mine}]
 }
 
-func strategyScore(name string, codeFn func(string, string) string) (int, error) {
+func strategyScore(fileName string, codeFn func(shape, string) shape) (int, error) {
 	var score int
-	err := input.ReadFileLinesStrings(name, func(tokens []string) error {
+	err := input.ReadFileLinesStrings(fileName, func(tokens []string) error {
 		if len(tokens) != 2 {
 			return errors.New("Wront number of argumetns " + strings.Join(tokens, " "))
 		}
@@ -107,7 +116,7 @@ func strategyScore(name string, codeFn func(string, string) string) (int, error)
 }
 
 func main() {
-	score, err := strategyScore("data/part_one_small.txt", myCodeOne)
+	score, err := strategyScore("data/part_one_small.txt", myCodeQuizOne)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -116,7 +125,7 @@ func main() {
 	fmt.Println("=============")
 	assert.Equals(15, score, "")
 
-	score, err = strategyScore("data/input.txt", myCodeOne)
+	score, err = strategyScore("data/input.txt", myCodeQuizOne)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -125,7 +134,7 @@ func main() {
 	fmt.Println("=============")
 	assert.Equals(12458, score, "")
 
-	score, err = strategyScore("data/part_one_small.txt", myCodeTwo)
+	score, err = strategyScore("data/part_one_small.txt", myCodeQuizTwo)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -134,7 +143,7 @@ func main() {
 	fmt.Println("=============")
 	assert.Equals(12, score, "")
 
-	score, err = strategyScore("data/input.txt", myCodeTwo)
+	score, err = strategyScore("data/input.txt", myCodeQuizTwo)
 	if err != nil {
 		fmt.Println(err)
 		return

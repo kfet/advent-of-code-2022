@@ -3,8 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
+	"regexp"
 
 	"kfet.org/aoc_common/input"
 )
@@ -13,31 +12,18 @@ type secRange struct {
 	s, e int
 }
 
-func getRange(s string) (secRange, error) {
-	tokens := strings.Split(s, "-")
-	if len(tokens) != 2 {
-		return secRange{}, errors.New("Wrong range format " + s)
+func NewSecRange(i []int) *secRange {
+	if i[1] < i[0] {
+		return &secRange{s: i[1], e: i[0]}
 	}
-	a, err := strconv.Atoi(tokens[0])
-	if err != nil {
-		return secRange{}, err
-	}
-	b, err := strconv.Atoi(tokens[1])
-	if err != nil {
-		return secRange{}, err
-	}
-	return secRange{s: a, e: b}, nil
+	return &secRange{s: i[0], e: i[1]}
 }
 
 func anyOverlap(a, b secRange) bool {
-	if a.s == b.s {
-		return true
+	if a.e < b.s || b.e < a.s {
+		return false
 	}
-	if a.s < b.s {
-		return a.e >= b.s
-	}
-	// a.s > b.s
-	return a.s <= b.e
+	return true
 }
 
 func fullOverlap(a, b secRange) bool {
@@ -58,19 +44,14 @@ func processFile(name string, testFunc func(secRange, secRange) bool) (int, erro
 	var sum int
 
 	err := input.ReadFileLines(name, func(line string) error {
-		tokens := strings.Split(line, ",")
-		if len(tokens) != 2 {
+		re := regexp.MustCompile(`^(\d+)-(\d+),(\d+)-(\d+)$`)
+		tokens := re.FindStringSubmatch(line)
+		if tokens == nil {
 			return errors.New("Wrong line format " + line)
 		}
 
-		r1, err := getRange(tokens[0])
-		if err != nil {
-			return err
-		}
-		r2, err := getRange(tokens[1])
-		if err != nil {
-			return err
-		}
+		r1 := *NewSecRange(input.MustStrConvInts(tokens[1:3]))
+		r2 := *NewSecRange(input.MustStrConvInts(tokens[3:5]))
 
 		if testFunc(r1, r2) {
 			sum++

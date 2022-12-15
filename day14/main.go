@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 
 	"kfet.org/aoc_common/assert"
@@ -127,16 +126,8 @@ func parsePoints(line string, pointHandler func(point) error) error {
 
 	for _, strPoint := range strPoints {
 		tokens := strings.Split(strPoint, ",")
-		x, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			return err
-		}
-		y, err := strconv.Atoi(tokens[1])
-		if err != nil {
-			return err
-		}
-		p := point{x: x, y: y}
-		err = pointHandler(p)
+		ints := input.MustAtoInts(tokens)
+		err := pointHandler(point{x: ints[0], y: ints[1]})
 		if err != nil {
 			return err
 		}

@@ -3,8 +3,25 @@ package input
 import (
 	"bufio"
 	"os"
+	"strconv"
 	"strings"
+
+	"github.com/samber/lo"
 )
+
+func MustAtoi(s string) int {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		panic("wrong int format " + s)
+	}
+	return i
+}
+
+func MustAtoInts(stringInts []string) []int {
+	return lo.Map(stringInts, func(item string, _ int) int {
+		return MustAtoi(item)
+	})
+}
 
 func ReadFileLinesStrings(name string, useLineStrings func(tokens []string) error) error {
 	err := ReadFileLines(name, func(line string) error {

@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"kfet.org/aoc_common/assert"
+	"kfet.org/aoc_common/input"
 )
 
 type item struct {
@@ -134,10 +134,7 @@ func parseInt(line string) (int, int, error) {
 			continue
 		}
 		// end of numeric, return what we collected so far
-		v, err := strconv.Atoi(b.String())
-		if err != nil {
-			return 0, 0, err
-		}
+		v := input.MustAtoi(b.String())
 		return v, i, nil
 	}
 	return 0, 0, errors.New("no integer value found in line " + line)

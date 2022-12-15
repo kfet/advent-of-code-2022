@@ -6,8 +6,8 @@ import (
 	"kfet.org/aoc_common/input"
 )
 
-func processFile(name string) (int, error) {
-	err := input.ReadFileLines(name, func(line string) error {
+func processFile(fileName string) (int, error) {
+	err := input.ReadFileLines(fileName, func(line string) error {
 		return nil
 	})
 	if err != nil {

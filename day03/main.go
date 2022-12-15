@@ -29,7 +29,7 @@ func findDuplicate(line string) (rune, error) {
 			// store map of runes in first compartment
 			m[r] = struct{}{}
 		} else {
-			// find duplicate run in second cmpartment
+			// find duplicate rune in second cmpartment
 			if _, found := m[r]; !found {
 				continue
 			}
@@ -37,12 +37,12 @@ func findDuplicate(line string) (rune, error) {
 			return r, nil
 		}
 	}
-	return 0, nil
+	return 0, errors.New("no duplicate found in line " + line)
 }
 
-func partOne(name string) (int, error) {
+func partOne(fileName string) (int, error) {
 	var sum int
-	err := input.ReadFileLines(name, func(line string) error {
+	err := input.ReadFileLines(fileName, func(line string) error {
 		r, err := findDuplicate(line)
 		if err != nil {
 			return err
@@ -56,11 +56,11 @@ func partOne(name string) (int, error) {
 	return sum, nil
 }
 
-func partTwo(name string) (int, error) {
+func partTwo(fileName string) (int, error) {
 	var sum int
 	var idx int
 	var m map[rune]int
-	err := input.ReadFileLines(name, func(line string) error {
+	err := input.ReadFileLines(fileName, func(line string) error {
 		defer func() {
 			idx++
 		}()
@@ -69,17 +69,17 @@ func partTwo(name string) (int, error) {
 		case 0:
 			m = map[rune]int{}
 			for _, r := range line {
-				m[r] = 1
+				m[r] = 0
 			}
 		case 1:
 			for _, r := range line {
 				if _, matched := m[r]; matched {
-					m[r] = 2
+					m[r] = 1
 				}
 			}
 		case 2:
 			for _, r := range line {
-				if n, matched := m[r]; matched && n == 2 {
+				if n, matched := m[r]; matched && n == 1 {
 					sum += runePriority(r)
 					return nil
 				}

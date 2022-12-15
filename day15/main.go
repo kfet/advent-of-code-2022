@@ -3,8 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
+	"regexp"
 
 	"kfet.org/aoc_common/assert"
 	"kfet.org/aoc_common/calc"
@@ -40,44 +39,17 @@ func (s *sensor) pointCovered(x, y int) bool {
 	return calc.TaxiCab(s.x, s.y, x, y) <= s.dist
 }
 
-// Parse string in the format "x=NN, y=NN"
-func parseCoords(coords string) (int, int, error) {
-	coordsTokens := strings.Split(coords, ", ")
-	if len(coordsTokens) != 2 {
-		return 0, 0, errors.New("wrong coords format " + coords)
-	}
-
-	x, err := strconv.Atoi(coordsTokens[0][len("x="):])
-	if err != nil {
-		return 0, 0, err
-	}
-	y, err := strconv.Atoi(coordsTokens[1][len("y="):])
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return x, y, nil
-}
-
 // Parse a string in the format "Sensor at <coords>: closest beacon is at <coords>"
-// see 'parseCoords' for <coords> format
 func readSensor(line string) (*sensor, *beacon, error) {
-	tokens := strings.Split(line, ": ")
-	if len(tokens) != 2 {
+	re := regexp.MustCompile(`^Sensor at x=(-?\d+), y=(-?\d+): closest beacon is at x=(-?\d+), y=(-?\d+)$`)
+	tokens := re.FindStringSubmatch(line)
+	if tokens == nil {
 		return nil, nil, errors.New("wrong sensor format " + line)
 	}
 
-	x, y, err := parseCoords(tokens[0][len("Sensor at "):])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	bx, by, err := parseCoords(tokens[1][len("closest beacon is at "):])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return NewSensor(x, y, bx, by), &beacon{bx, by}, nil
+	coords := input.MustAtoInts(tokens[1:])
+	return NewSensor(coords[0], coords[1], coords[2], coords[3]),
+		&beacon{coords[2], coords[3]}, nil
 }
 
 type rowCoverage struct {
