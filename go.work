@@ -14,6 +14,8 @@ use ./day12
 
 use ./day13
 
+use ./day17
+
 use ./aoc_common
 
 replace kfet.org/aoc_common v0.0.0 => ./aoc_common

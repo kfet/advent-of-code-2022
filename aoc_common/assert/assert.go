@@ -25,6 +25,12 @@ func True(c bool) {
 	}
 }
 
+func False(c bool) {
+	if c {
+		panic("condition should be false")
+	}
+}
+
 func EqualsT(t *testing.T, expected, actual interface{}) {
 	if !reflect.DeepEqual(expected, actual) {
 		msg := fmt.Sprintf("expected: %v, actual %v", expected, actual)

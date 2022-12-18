@@ -9,6 +9,16 @@ import (
 	"github.com/samber/lo"
 )
 
+func CopyMap[K comparable, V any](source map[K]V, filter func(key K, value V) bool) map[K]V {
+	res := make(map[K]V)
+	for k, v := range source {
+		if filter(k, v) {
+			res[k] = v
+		}
+	}
+	return res
+}
+
 func MustAtoi(s string) int {
 	i, err := strconv.Atoi(s)
 	if err != nil {
