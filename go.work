@@ -16,6 +16,8 @@ use ./day13
 
 use ./day17
 
+use ./day23
+
 use ./day24
 
 use ./aoc_common
