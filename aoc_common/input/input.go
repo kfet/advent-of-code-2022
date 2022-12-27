@@ -9,6 +9,18 @@ import (
 	"github.com/samber/lo"
 )
 
+func NoSliceFilter[T any](item T, index int) T {
+	return item
+}
+
+func CopySlice[T any](slice []T) []T {
+	return lo.Map(slice, NoSliceFilter[T])
+}
+
+func NoFilter[K comparable, V any](key K, value V) bool {
+	return true
+}
+
 func CopyMap[K comparable, V any](source map[K]V, filter func(key K, value V) bool) map[K]V {
 	res := make(map[K]V)
 	for k, v := range source {

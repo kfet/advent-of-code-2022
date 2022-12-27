@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/samber/lo"
@@ -10,56 +11,107 @@ import (
 
 type mask [][]uint8
 
-type rock mask
+type rock struct {
+	m        *mask
+	x, y     int
+	moveType int
+}
+
+func NewRock(m *mask, x, y int) *rock {
+	r := &rock{
+		m: m,
+		x: x,
+		y: y,
+	}
+	return r
+}
 
 const chamberWidth int = 7
 
 type chamber struct {
-	w    int
-	h    int
-	rows mask
+	w         int
+	h         int
+	maskStart *big.Int
+	rows      mask
 }
 
 func NewChamber(width int) *chamber {
 	return &chamber{
-		w: width,
+		w:         width,
+		maskStart: big.NewInt(0),
 	}
 }
 
-func (c *chamber) stampRock(r *rock, x, y int) {
-	fmt.Println("Stamp rock")
-	fmt.Println(x, y)
-	fmt.Println(*r)
-	fmt.Println()
+func (ch *chamber) String() string {
+	bitMap := map[uint8]string{
+		0: ".",
+		1: "#",
+	}
+	var sb strings.Builder
+	for i := len(ch.rows) - 1; i >= 0; i-- {
+		for _, c := range ch.rows[i] {
+			sb.WriteString(bitMap[c])
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
 
+func (ch *chamber) isNewFloor(row int) bool {
+	for _, c := range ch.rows[row] {
+		if c == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (ch *chamber) newFloor(row int) {
+	ch.rows = ch.rows[row:]
+	ch.h = len(ch.rows)
+	ch.maskStart.Add(ch.maskStart, big.NewInt(int64(row)))
+}
+
+func (ch *chamber) stampRock(r *rock) {
 	// add rows as needed
-	for c.h < y+1 {
-		c.rows = append(c.rows, make([]uint8, c.w))
-		c.h++
+	for ch.h < r.y+1 {
+		ch.rows = append(ch.rows, make([]uint8, ch.w))
+		ch.h++
 	}
 
 	// stamp the rock mask
-	for ry, rr := range *r {
-		cy := y - ry
+	var newFloorRow int
+	for ry, rr := range *r.m {
+		cy := r.y - ry
 		for rx, bit := range rr {
-			cx := rx + x
-			if cx < 0 || cx >= c.w {
+			cx := rx + r.x
+			if cx < 0 || cx >= ch.w {
 				continue
 			}
-			c.rows[cy][cx] |= bit
+			ch.rows[cy][cx] |= bit
 		}
+
+		if ch.isNewFloor(cy) {
+			newFloorRow = cy
+		}
+	}
+
+	if newFloorRow > 0 {
+		ch.newFloor(newFloorRow)
 	}
 }
 
-func (c *chamber) testMove(r *rock, x, y int) bool {
-	for ry, rr := range *r {
-		cy := y - ry
+func (c *chamber) testMove(r *rock, mv move) bool {
+	testX := r.x + mv.dx
+	testY := r.y + mv.dy
+	for ry, rr := range *r.m {
+		cy := testY - ry
 		if cy < 0 {
 			// hit the floor
 			return false
 		}
 		for rx, bit := range rr {
-			cx := rx + x
+			cx := rx + testX
 			if cx < 0 || cx >= c.w {
 				// attempt to move outside of chamber
 				return false
@@ -85,28 +137,28 @@ type move struct {
 }
 
 type world struct {
-	rocks    []*rock
-	rockIdx  int
-	x, y     int
-	rockMove int
+	rockSprites []*mask
+	spriteIdx   int
 
 	jets   []move
 	curJet int
 
 	ch *chamber
+	r  *rock
+
+	rockCount *big.Int
 }
 
-const rocksFile string = "data/rocks.txt"
+const spritesFile string = "data/rocks.txt"
 
 func NewWorld(jetsFile string) *world {
 	w := &world{
-		ch:    NewChamber(chamberWidth),
-		rocks: []*rock{},
-
-		rockIdx: -1,
+		spriteIdx: -1,
+		ch:        NewChamber(chamberWidth),
+		rockCount: big.NewInt(0),
 	}
 
-	w.readRocks(rocksFile)
+	w.readSprites(spritesFile)
 	w.readJets(jetsFile)
 	w.nextRock()
 
@@ -115,22 +167,38 @@ func NewWorld(jetsFile string) *world {
 
 func (w *world) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintln("x:", w.x, ",y:", w.y))
-	sb.WriteRune('\n')
-	for i := len(w.ch.rows) - 1; i >= 0; i-- {
-		r := w.ch.rows[i]
-		sb.WriteString(fmt.Sprintln(r))
-	}
-	sb.WriteRune('\n')
+	sb.WriteString(fmt.Sprintln("x:", w.r.x, ",y:", w.r.y))
+	sb.WriteString(fmt.Sprintln(*w.r.m))
+	sb.WriteString(w.ch.String())
 	return sb.String()
 }
 
-func (w *world) step() {
+// false if rock stuck
+func (w *world) moveRock(r *rock, mv move) bool {
+	if w.ch.testMove(r, mv) {
+		// can move
+		r.x += mv.dx
+		r.y += mv.dy
+		r.moveType++
+		return true
+	}
+	// can't move
 
+	if mv.dy < 0 {
+		// at bottom, stuck
+		w.ch.stampRock(r)
+		return false
+	}
+
+	// next move type
+	r.moveType++
+	return true
+}
+
+func (w *world) step() {
 	var nextMove move
-	switch w.rockMove % 2 {
+	switch w.r.moveType % 2 {
 	case 0:
-		fmt.Println("Jet move")
 		nextMove = w.jets[w.curJet]
 		w.curJet++
 		if w.curJet >= len(w.jets) {
@@ -138,41 +206,34 @@ func (w *world) step() {
 		}
 
 	case 1:
-		fmt.Println("Down move")
 		nextMove = downMove
 	}
 
-	if w.ch.testMove(w.rocks[w.rockIdx], w.x+nextMove.dx, w.y+nextMove.dy) {
-		// can move
-		w.x += nextMove.dx
-		w.y += nextMove.dy
-	} else {
-		// hit rock
-		if w.rockMove == 1 {
-			// ... at bottom
-			w.ch.stampRock(w.rocks[w.rockIdx], w.x, w.y)
-			w.nextRock()
-			w.rockMove = -1
-		}
+	if !w.moveRock(w.r, nextMove) {
+		// stuck
+		w.nextRock()
 	}
-
-	// next move
-	w.rockMove++
 }
 
-func (w *world) nextRock() {
-	if w.rockIdx >= len(w.rocks)-1 {
-		w.rockIdx = 0
+func (w *world) nextSprite() *mask {
+	if w.spriteIdx >= len(w.rockSprites)-1 {
+		w.spriteIdx = 0
 	} else {
-		w.rockIdx++
+		w.spriteIdx++
 	}
+	return w.rockSprites[w.spriteIdx]
+}
 
-	w.x = 2
+var bigOne *big.Int = big.NewInt(1)
 
-	rh := len(*w.rocks[w.rockIdx])
-	w.y = w.ch.h + rh + 2
+func (w *world) nextRock() {
+	ns := w.nextSprite()
 
-	w.rockMove = 0
+	x := 2
+	y := w.ch.h + len(*ns) + 2
+
+	w.r = NewRock(ns, x, y)
+	w.rockCount.Add(w.rockCount, bigOne)
 }
 
 func (w *world) readJets(line string) {
@@ -185,24 +246,24 @@ func (w *world) readJets(line string) {
 	})
 }
 
-func (w *world) readRocks(fileName string) error {
+func (w *world) readSprites(fileName string) error {
 	runeMap := map[rune]uint8{
 		'.': 0,
 		'#': 1,
 	}
 
-	r := &rock{}
+	sprite := &mask{}
 	err := input.ReadFileLines(fileName, func(line string) error {
 		if len(line) == 0 {
-			w.rocks = append(w.rocks, r)
-			r = &rock{}
+			w.rockSprites = append(w.rockSprites, sprite)
+			sprite = &mask{}
 			return nil
 		}
 
 		row := lo.Map([]rune(line), func(r rune, i int) uint8 {
 			return runeMap[r]
 		})
-		(*r) = append((*r), row)
+		(*sprite) = append((*sprite), row)
 
 		return nil
 	})
@@ -210,39 +271,33 @@ func (w *world) readRocks(fileName string) error {
 		return err
 	}
 	// append the last rock
-	w.rocks = append(w.rocks, r)
+	w.rockSprites = append(w.rockSprites, sprite)
 	return nil
 }
 
-func processFile(fileName string) (int, error) {
+func processFile(fileName string, rockCount *big.Int) (*big.Int, error) {
 	var jets string
 	err := input.ReadFileLines(fileName, func(line string) error {
 		jets = line
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	w := NewWorld(jets)
-
-	fmt.Println(w.jets)
-	for _, r := range w.rocks {
-		fmt.Println(r)
-	}
-	fmt.Println()
-
-	for i := 0; i < 10; i++ {
-		fmt.Println(w.String())
+	for {
 		w.step()
+		if w.rockCount.Cmp(rockCount) >= 0 {
+			break
+		}
 	}
-	fmt.Println(w.String())
 
-	return 0, nil
+	return w.ch.maskStart.Add(w.ch.maskStart, big.NewInt(int64(w.ch.h))), nil
 }
 
 func main() {
-	res, err := processFile("data/part_one.txt")
+	res, err := processFile("data/part_one.txt", big.NewInt(2023))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -250,7 +305,16 @@ func main() {
 	fmt.Println(res)
 	fmt.Println("=================")
 
-	// res, err = processFile("data/input.txt")
+	res, err = processFile("data/input.txt", big.NewInt(2023))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
+
+	// bigCount, _ := big.NewInt(0).SetString("1000000000000", 10)
+	// res, err = processFile("data/part_one.txt", bigCount)
 	// if err != nil {
 	// 	fmt.Println(err)
 	// 	return
