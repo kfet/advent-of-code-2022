@@ -14,7 +14,9 @@ func NoSliceFilter[T any](item T, index int) T {
 }
 
 func CopySlice[T any](slice []T) []T {
-	return lo.Map(slice, NoSliceFilter[T])
+	res := make([]T, len(slice))
+	copy(res, slice)
+	return res
 }
 
 func NoFilter[K comparable, V any](key K, value V) bool {

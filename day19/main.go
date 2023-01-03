@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	"kfet.org/aoc_common/assert"
+	"kfet.org/aoc_common/calc"
 	"kfet.org/aoc_common/input"
 )
-
-const timeToRun int = 24 // minutes
 
 type material uint8
 
@@ -16,205 +17,269 @@ const (
 	clay
 	obsidian
 	geode
+	materialsCount
 )
 
 type blueprint struct {
-	id int
-	rc []*robotCost
+	id    int
+	rCost []robotCost
+	rMax  []int // max number of each robot type
 }
 
-func (b *blueprint) String() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintln(b.id))
-	for _, rc := range b.rc {
-		sb.WriteString("; " + fmt.Sprint(rc.m) + ": [")
-		for _, mc := range rc.cost {
-			sb.WriteString(fmt.Sprint(mc.m) + ":" + fmt.Sprint(mc.c) + ", ")
-		}
-		sb.WriteString("]")
-	}
-	return sb.String()
-}
+type robotCost []int
 
-type robotCost struct {
-	m    material
-	cost []*materialCost
-}
-
-type materialCost struct {
-	m material
-	c int
-}
-
-type robot struct {
-	m material
-}
-
-type simulation struct {
+type worldState struct {
 	b      *blueprint
-	robots []*robot
-	goods  map[material]int
+	robots []int
+	goods  []int
 }
 
-func NewSim(blueprintLine string) *simulation {
-	b := parseBlueprint(blueprintLine)
-	goods := map[material]int{}
-	for _, rc := range b.rc {
-		goods[rc.m] = 0
+func NewSim(blueprintLine string) *worldState {
+	s := &worldState{
+		b:      parseBlueprint(blueprintLine),
+		goods:  make([]int, materialsCount),
+		robots: make([]int, materialsCount),
 	}
-	return &simulation{
-		b:      b,
-		robots: []*robot{{m: ore}},
-		goods:  goods,
-	}
+	s.robots[ore] = 1
+	return s
 }
 
-func (sim *simulation) String() string {
+func (ws *worldState) String() string {
 	var sb strings.Builder
-	sb.WriteString(sim.b.String())
-	sb.WriteString(fmt.Sprintln(sim.robots))
-	sb.WriteString(fmt.Sprint(sim.goods))
+	sb.WriteString(fmt.Sprintln(ws.b))
+	sb.WriteString(fmt.Sprintln("r: ", ws.robots))
+	sb.WriteString(fmt.Sprint("m: ", ws.goods))
 	return sb.String()
 }
 
-func (sim *simulation) copySim() *simulation {
-	return &simulation{
-		b:      sim.b,
-		robots: input.CopySlice(sim.robots),
-		goods:  input.CopyMap(sim.goods, input.NoFilter[material, int]),
+func (ws *worldState) copySim() *worldState {
+	return &worldState{
+		b:      ws.b,
+		robots: input.CopySlice(ws.robots),
+		goods:  input.CopySlice(ws.goods),
 	}
 }
 
-func (sim *simulation) buildBot(rc *robotCost) (*robot, bool) {
-	for _, mc := range rc.cost {
-		sim.goods[mc.m] -= mc.c
-		if sim.goods[mc.m] < 0 {
-			return nil, false
+func (ws *worldState) canBuildBot(rc robotCost) bool {
+	for m, c := range rc {
+		if ws.goods[m] < c {
+			return false
 		}
 	}
-	return &robot{rc.m}, true
+	return true
 }
 
-func (sim *simulation) mineGoods() {
-	for _, r := range sim.robots {
-		sim.goods[r.m]++
+func (ws *worldState) buildBot(rc robotCost) {
+	for m, c := range rc {
+		ws.goods[m] -= c
 	}
 }
 
-func (sim *simulation) maxGoods(timeLeft int, m material) int {
-	if timeLeft == 0 {
+func (ws *worldState) nextStates(target material) []*worldState {
+	// choices for next step: just mine, or build any of the robots
+	res := []*worldState{}
+
+	// just mining - each robot we have would produce 1 unit of the material it mines
+	justMining := ws.copySim()
+	for m, c := range ws.robots {
+		justMining.goods[m] += c
+	}
+
+	// enum in reverse, giving priority to creating geode-cracking bots
+	for m := materialsCount - 1; m >= 0; m-- {
+		if material(m) != target &&
+			ws.robots[m] >= ws.b.rMax[m] {
+			// already saturated this type of robot, skip state
+			continue
+		}
+
+		rc := ws.b.rCost[m]
+		if !ws.canBuildBot(rc) {
+			continue
+		}
+
+		// clone state from the mining one, and build a bot in it
+		ns := justMining.copySim()
+		ns.buildBot(rc)
+		ns.robots[m]++
+
+		res = append(res, ns)
+	}
+
+	// append the waiting state at the very end as an optimization
+	res = append(res, justMining)
+
+	return res
+}
+
+func (ws *worldState) upperLimitGoods(t int, m material) int {
+	rc := ws.b.rCost[m]
+	timeToNextMRobo := 1
+	for m, c := range rc {
+		mcMatRobots := ws.robots[m]
+		mcMatGoods := ws.goods[m]
+		mcCostMissing := c - mcMatGoods
+		t := 1
+		for mcCostMissing > 0 {
+			mcCostMissing -= mcMatRobots
+			mcMatRobots++ // assume best case where we can build those robots each minute
+			t++
+		}
+		timeToNextMRobo = calc.Max(timeToNextMRobo, t)
+	}
+
+	return ws.goods[m] +
+		t*ws.robots[m] +
+		(t-timeToNextMRobo)*(t-timeToNextMRobo)/2
+}
+
+func (ws *worldState) maxGoods(time int, target material, minGoods int) int {
+	if time == 0 {
+		// at end of search, return goods produced
+		return ws.goods[target]
+	}
+
+	if ws.upperLimitGoods(time, target) < minGoods {
+		// theoretical maximum lower than required minimum
 		return 0
 	}
 
-	// run a one minute-step for no bot built
-	var maxGoods int
-
-	// run a one minute-step variant for each type of bot
-	for _, rc := range sim.b.rc {
-		ssim := sim.copySim()
-		r, ok := ssim.buildBot(rc)
-		if !ok {
-			// not enough goods to build this bot, skip
-			continue
-		}
-		// mine materials
-		ssim.mineGoods()
-		ssim.robots = append(ssim.robots, r)
-		subMaxGoods := ssim.maxGoods(timeLeft-1, m)
-		if subMaxGoods > maxGoods {
-			maxGoods = subMaxGoods
+	maxGoods := minGoods
+	for _, ns := range ws.nextStates(target) {
+		mg := ns.maxGoods(time-1, target, maxGoods)
+		if mg > maxGoods {
+			maxGoods = mg
 		}
 	}
 
-	if maxGoods == 0 {
-		// no bot can be built, try just mining goods
-		ssim := sim.copySim()
-		ssim.mineGoods()
-		maxGoods = ssim.maxGoods(timeLeft-1, m)
-	}
-
-	return sim.goods[m] + maxGoods
+	return maxGoods
 }
 
 // "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian."
 func parseBlueprint(line string) *blueprint {
 	tokens := strings.Split(line, " ")
-	return &blueprint{
+	bp := &blueprint{
 		id: input.MustAtoi(tokens[1][0 : len(tokens[1])-1]),
-		rc: []*robotCost{
-			{m: ore, cost: []*materialCost{
-				{
-					m: ore,
-					c: input.MustAtoi(tokens[6]),
-				},
-			}},
-			{m: clay, cost: []*materialCost{
-				{
-					m: ore,
-					c: input.MustAtoi(tokens[12]),
-				},
-			}},
-			{m: obsidian, cost: []*materialCost{
-				{
-					m: ore,
-					c: input.MustAtoi(tokens[18]),
-				},
-				{
-					m: clay,
-					c: input.MustAtoi(tokens[21]),
-				},
-			}},
-			{m: geode, cost: []*materialCost{
-				{
-					m: ore,
-					c: input.MustAtoi(tokens[27]),
-				},
-				{
-					m: obsidian,
-					c: input.MustAtoi(tokens[30]),
-				},
-			}},
+		rCost: []robotCost{
+			make([]int, materialsCount), // ore
+			make([]int, materialsCount), // clay
+			make([]int, materialsCount), // obsidian
+			make([]int, materialsCount), // geode
 		},
+		rMax: make([]int, materialsCount),
 	}
+
+	bp.rCost[ore][ore] = input.MustAtoi(tokens[6])
+
+	bp.rCost[clay][ore] = input.MustAtoi(tokens[12])
+
+	bp.rCost[obsidian][ore] = input.MustAtoi(tokens[18])
+	bp.rCost[obsidian][clay] = input.MustAtoi(tokens[21])
+
+	bp.rCost[geode][ore] = input.MustAtoi(tokens[27])
+	bp.rCost[geode][obsidian] = input.MustAtoi(tokens[30])
+
+	for i := 0; i < materialsCount; i++ {
+		max := bp.maxRobotsForMaterial(material(i))
+		bp.rMax[i] = max
+	}
+
+	return bp
 }
 
-func processFile(fileName string) (int, error) {
+func (b *blueprint) maxRobotsForMaterial(m material) int {
+	max := 0
+	for _, rc := range b.rCost {
+		mrc := rc[m]
+		if mrc > max {
+			max = mrc
+		}
+	}
+	return max
+}
 
-	sims := []*simulation{}
-
+func processFile(fileName string, mat material, timeToRun int, partOne bool) (int, error) {
+	// read all blueprints into world states
+	states := []*worldState{}
 	err := input.ReadFileLines(fileName, func(line string) error {
-		sims = append(sims, NewSim(line))
+		s := NewSim(line)
+		states = append(states, s)
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
 
-	var totalQ int
-	for _, s := range sims {
-		fmt.Println(s.String())
-		maxGoods := s.maxGoods(timeToRun, geode)
-		fmt.Println(maxGoods)
-		totalQ += s.b.id * maxGoods
+	if partOne {
+		// run each state
+		var totalQ int
+		for _, s := range states {
+			start := time.Now()
+			fmt.Println("Starting at ", start)
+
+			fmt.Println(s.String())
+
+			max := s.maxGoods(timeToRun, mat, 0)
+			fmt.Println("max: ", max)
+
+			totalQ += s.b.id * max
+			fmt.Println("elapsed time: ", time.Since(start))
+			fmt.Println("---------------------------")
+		}
+
+		return totalQ, nil
 	}
 
-	return totalQ, nil
+	// part two
+	res := 1
+	for i := 0; i < 3; i++ {
+		s := states[i]
+
+		start := time.Now()
+		fmt.Println("Starting at ", start)
+
+		fmt.Println(s.String())
+
+		max := s.maxGoods(timeToRun, mat, 0)
+		fmt.Println("max: ", max)
+
+		res *= max
+
+		fmt.Println("elapsed time: ", time.Since(start))
+		fmt.Println("---------------------------")
+	}
+
+	return res, nil
 }
 
 func main() {
-	res, err := processFile("data/part_one.txt")
+	var res int
+	var err error
+	res, err = processFile("data/part_one.txt", geode, 24, true)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	fmt.Println(res)
 	fmt.Println("=================")
+	assert.Equals(33, res, "")
 
-	// res, err = processFile("data/input.txt")
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// fmt.Println(res)
-	// fmt.Println("=================")
+	// NOTE: this takes a few minutes to finish
+	res, err = processFile("data/input.txt", geode, 24, true)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
+	assert.Equals(1346, res, "")
+
+	res, err = processFile("data/input.txt", geode, 32, false)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res)
+	fmt.Println("=================")
+	assert.Equals(7644, res, "")
 }
