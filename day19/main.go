@@ -21,24 +21,24 @@ const (
 )
 
 type blueprint struct {
-	id    int
-	rCost []robotCost
-	rMax  []int // max number of each robot type
+	id        int
+	robotCost []robotCost // indexed by material
+	robotMax  []int       // max number of each robot type, indexed by material
 }
 
-type robotCost []int
+type robotCost []int // indexed by material
 
 type worldState struct {
-	b      *blueprint
-	robots []int
-	goods  []int
+	blueprint *blueprint
+	robots    []int
+	goods     []int
 }
 
-func NewSim(blueprintLine string) *worldState {
+func NewState(blueprintLine string) *worldState {
 	s := &worldState{
-		b:      parseBlueprint(blueprintLine),
-		goods:  make([]int, materialsCount),
-		robots: make([]int, materialsCount),
+		blueprint: parseBlueprint(blueprintLine),
+		robots:    make([]int, materialsCount),
+		goods:     make([]int, materialsCount),
 	}
 	s.robots[ore] = 1
 	return s
@@ -46,113 +46,139 @@ func NewSim(blueprintLine string) *worldState {
 
 func (ws *worldState) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintln(ws.b))
+	sb.WriteString(fmt.Sprintln(ws.blueprint))
 	sb.WriteString(fmt.Sprintln("r: ", ws.robots))
-	sb.WriteString(fmt.Sprint("m: ", ws.goods))
+	sb.WriteString(fmt.Sprintln("m: ", ws.goods))
 	return sb.String()
 }
 
-func (ws *worldState) copySim() *worldState {
+func (ws *worldState) copyState() *worldState {
 	return &worldState{
-		b:      ws.b,
-		robots: input.CopySlice(ws.robots),
-		goods:  input.CopySlice(ws.goods),
+		blueprint: ws.blueprint,
+		robots:    input.CopySlice(ws.robots),
+		goods:     input.CopySlice(ws.goods),
 	}
 }
 
-func (ws *worldState) canBuildBot(rc robotCost) bool {
-	for m, c := range rc {
-		if ws.goods[m] < c {
-			return false
+func (ws *worldState) robotBuildTime(rCost robotCost) (int, bool) {
+	waitTime := 0
+	for mat, cost := range rCost {
+		if cost <= ws.goods[mat] {
+			// no wait time for this building block
+			continue
 		}
+		// cost > ws.goods[m], i.e. need to wait for material to be produced...
+		if ws.robots[mat] == 0 {
+			//.. but no robots  esist to build the base materials - return false
+			return 0, false
+		}
+
+		lacking := cost - ws.goods[mat]
+		wait := lacking / ws.robots[mat]
+		if lacking%ws.robots[mat] > 0 {
+			wait++
+		}
+
+		waitTime = calc.Max(waitTime, wait)
 	}
-	return true
+
+	// add 1 minute to build the bot
+	return waitTime + 1, true
 }
 
-func (ws *worldState) buildBot(rc robotCost) {
+func (ws *worldState) buildBot(mat int, rc robotCost) {
 	for m, c := range rc {
 		ws.goods[m] -= c
 	}
+	ws.robots[mat]++
 }
 
-func (ws *worldState) nextStates(target material) []*worldState {
-	// choices for next step: just mine, or build any of the robots
-	res := []*worldState{}
-
-	// just mining - each robot we have would produce 1 unit of the material it mines
-	justMining := ws.copySim()
-	for m, c := range ws.robots {
-		justMining.goods[m] += c
+func (ws *worldState) mine(time int) {
+	for m, count := range ws.robots {
+		ws.goods[m] += time * count
 	}
+}
 
-	// enum in reverse, giving priority to creating geode-cracking bots
-	for m := materialsCount - 1; m >= 0; m-- {
-		if material(m) != target &&
-			ws.robots[m] >= ws.b.rMax[m] {
-			// already saturated this type of robot, skip state
+type nextState struct {
+	ws       *worldState
+	timeLeft int
+}
+
+func (ns *nextState) String() string {
+	return fmt.Sprint("tl:", ns.timeLeft, " ws:", ns.ws)
+}
+
+func (ws *worldState) nextStates(timeLeft int, target material) []*nextState {
+	// choices for next steps: which bot to build next
+	res := []*nextState{}
+
+	for mat, rCost := range ws.blueprint.robotCost {
+		if material(mat) != target &&
+			ws.robots[mat] >= ws.blueprint.robotMax[mat] {
+			// already saturated this type of robot
+			// skip state
 			continue
 		}
 
-		rc := ws.b.rCost[m]
-		if !ws.canBuildBot(rc) {
+		waitAndBuildTime, ok := ws.robotBuildTime(rCost)
+		if !ok {
+			// can't build bot, lacks base material bots
+			// skip state
 			continue
 		}
 
-		// clone state from the mining one, and build a bot in it
-		ns := justMining.copySim()
-		ns.buildBot(rc)
-		ns.robots[m]++
+		if waitAndBuildTime > timeLeft {
+			// not enough time to build this type of bot
+			// just mine until end of time
+			endWs := ws.copyState()
+			endWs.mine(timeLeft)
+			res = append(res, &nextState{
+				ws:       endWs,
+				timeLeft: 0,
+			})
+			continue
+		}
 
-		res = append(res, ns)
+		nws := ws.copyState()
+		nws.mine(waitAndBuildTime)
+		nws.buildBot(mat, rCost)
+		res = append(res, &nextState{
+			ws:       nws,
+			timeLeft: timeLeft - waitAndBuildTime,
+		})
 	}
-
-	// append the waiting state at the very end as an optimization
-	res = append(res, justMining)
 
 	return res
 }
 
-func (ws *worldState) upperLimitGoods(t int, m material) int {
-	rc := ws.b.rCost[m]
-	timeToNextMRobo := 1
-	for m, c := range rc {
-		mcMatRobots := ws.robots[m]
-		mcMatGoods := ws.goods[m]
-		mcCostMissing := c - mcMatGoods
-		t := 1
-		for mcCostMissing > 0 {
-			mcCostMissing -= mcMatRobots
-			mcMatRobots++ // assume best case where we can build those robots each minute
-			t++
-		}
-		timeToNextMRobo = calc.Max(timeToNextMRobo, t)
-	}
-
-	return ws.goods[m] +
-		t*ws.robots[m] +
-		(t-timeToNextMRobo)*(t-timeToNextMRobo)/2
+func (ws *worldState) upperLimitGoods(timeLeft int, mat material) int {
+	return ws.goods[mat] +
+		timeLeft*ws.robots[mat] +
+		timeLeft*timeLeft/2
 }
 
-func (ws *worldState) maxGoods(time int, target material, minGoods int) int {
-	if time == 0 {
+func (ws *worldState) maxGoods(timeLeft int, target material, minGoods int) (int, []*nextState) {
+	if timeLeft == 0 {
 		// at end of search, return goods produced
-		return ws.goods[target]
+		return ws.goods[target], []*nextState{{ws: ws, timeLeft: timeLeft}}
 	}
 
-	if ws.upperLimitGoods(time, target) < minGoods {
+	if ws.upperLimitGoods(timeLeft, target) < minGoods {
 		// theoretical maximum lower than required minimum
-		return 0
+		return 0, nil
 	}
 
-	maxGoods := minGoods
-	for _, ns := range ws.nextStates(target) {
-		mg := ns.maxGoods(time-1, target, maxGoods)
-		if mg > maxGoods {
-			maxGoods = mg
+	max := minGoods
+	var maxWs []*nextState
+	for _, ns := range ws.nextStates(timeLeft, target) {
+		nextMax, mws := ns.ws.maxGoods(ns.timeLeft, target, max)
+		if nextMax > max {
+			max = nextMax
+			maxWs = mws
 		}
 	}
 
-	return maxGoods
+	return max, append([]*nextState{{ws: ws, timeLeft: timeLeft}}, maxWs...)
 }
 
 // "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian."
@@ -160,28 +186,27 @@ func parseBlueprint(line string) *blueprint {
 	tokens := strings.Split(line, " ")
 	bp := &blueprint{
 		id: input.MustAtoi(tokens[1][0 : len(tokens[1])-1]),
-		rCost: []robotCost{
+		robotCost: []robotCost{
 			make([]int, materialsCount), // ore
 			make([]int, materialsCount), // clay
 			make([]int, materialsCount), // obsidian
 			make([]int, materialsCount), // geode
 		},
-		rMax: make([]int, materialsCount),
+		robotMax: make([]int, materialsCount),
 	}
 
-	bp.rCost[ore][ore] = input.MustAtoi(tokens[6])
+	bp.robotCost[ore][ore] = input.MustAtoi(tokens[6])
 
-	bp.rCost[clay][ore] = input.MustAtoi(tokens[12])
+	bp.robotCost[clay][ore] = input.MustAtoi(tokens[12])
 
-	bp.rCost[obsidian][ore] = input.MustAtoi(tokens[18])
-	bp.rCost[obsidian][clay] = input.MustAtoi(tokens[21])
+	bp.robotCost[obsidian][ore] = input.MustAtoi(tokens[18])
+	bp.robotCost[obsidian][clay] = input.MustAtoi(tokens[21])
 
-	bp.rCost[geode][ore] = input.MustAtoi(tokens[27])
-	bp.rCost[geode][obsidian] = input.MustAtoi(tokens[30])
+	bp.robotCost[geode][ore] = input.MustAtoi(tokens[27])
+	bp.robotCost[geode][obsidian] = input.MustAtoi(tokens[30])
 
-	for i := 0; i < materialsCount; i++ {
-		max := bp.maxRobotsForMaterial(material(i))
-		bp.rMax[i] = max
+	for m := 0; m < materialsCount; m++ {
+		bp.robotMax[m] = bp.maxRobotsForMaterial(material(m))
 	}
 
 	return bp
@@ -189,7 +214,7 @@ func parseBlueprint(line string) *blueprint {
 
 func (b *blueprint) maxRobotsForMaterial(m material) int {
 	max := 0
-	for _, rc := range b.rCost {
+	for _, rc := range b.robotCost {
 		mrc := rc[m]
 		if mrc > max {
 			max = mrc
@@ -202,7 +227,7 @@ func processFile(fileName string, mat material, timeToRun int, partOne bool) (in
 	// read all blueprints into world states
 	states := []*worldState{}
 	err := input.ReadFileLines(fileName, func(line string) error {
-		s := NewSim(line)
+		s := NewState(line)
 		states = append(states, s)
 		return nil
 	})
@@ -219,10 +244,10 @@ func processFile(fileName string, mat material, timeToRun int, partOne bool) (in
 
 			fmt.Println(s.String())
 
-			max := s.maxGoods(timeToRun, mat, 0)
+			max, _ := s.maxGoods(timeToRun, mat, 0)
 			fmt.Println("max: ", max)
 
-			totalQ += s.b.id * max
+			totalQ += s.blueprint.id * max
 			fmt.Println("elapsed time: ", time.Since(start))
 			fmt.Println("---------------------------")
 		}
@@ -240,7 +265,7 @@ func processFile(fileName string, mat material, timeToRun int, partOne bool) (in
 
 		fmt.Println(s.String())
 
-		max := s.maxGoods(timeToRun, mat, 0)
+		max, _ := s.maxGoods(timeToRun, mat, 0)
 		fmt.Println("max: ", max)
 
 		res *= max
@@ -255,6 +280,7 @@ func processFile(fileName string, mat material, timeToRun int, partOne bool) (in
 func main() {
 	var res int
 	var err error
+
 	res, err = processFile("data/part_one.txt", geode, 24, true)
 	if err != nil {
 		fmt.Println(err)
@@ -264,7 +290,6 @@ func main() {
 	fmt.Println("=================")
 	assert.Equals(33, res, "")
 
-	// NOTE: this takes a few minutes to finish
 	res, err = processFile("data/input.txt", geode, 24, true)
 	if err != nil {
 		fmt.Println(err)
