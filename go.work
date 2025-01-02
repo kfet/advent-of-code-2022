@@ -18,6 +18,8 @@ use ./day17
 
 use ./day19
 
+use ./day22
+
 use ./day23
 
 use ./day24
